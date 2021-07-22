@@ -22,12 +22,252 @@
 
           try {
 
+              background(0);
+
 /****************************************** PJS CODE *********************/
-background(0);
+
+
 smooth();
 noStroke();
 
+
+// defining constructors and globals
+// these are defined early on for organization and global access
+// this is good when you want to reference something that hasn't been defined yet
+var Player, Block;
+var p = {}, level;
+var blockSize = 30, pixSize = 5, grav = 0.3;
+var cam = {
+    x: 0,
+    y: 0,
+};
+
+// defines the pages
+var page, game;
+
+// loads a default image
+background(0);
+var defaultImage = get(0, 0, blockSize, blockSize);
+
+// player interaction
+var keys = [];
+keyPressed = function() {
+    keys[keyCode] = true;
+    //println(keyCode);
+};
+keyReleased = function() {
+    keys[keyCode] = false;
+};
+
+// checks for overlap between two objects
+var coll = function(a, b) {
+    return a.x + a.w > b.x && a.y + a.h > b.y && a.x < b.x + b.w && a.y < b.y + b.h;
+};
+
+// I'm going for efficiency in my collisions
+// using nested arrays for the levels lets me only test relevent blocks
+// eliminating the lag associated with cheking every block
+var nearBlocks = function(arr, x, y, s) {
+    s = s || 3;
+    x = constrain(floor(x/blockSize) - floor(s/2), 0, arr[arr.length - 1].length - s);
+    y = constrain(floor(y/blockSize) - floor(s/2), 0, arr.length - s);
+    var near = [];
+
+    for(var yb = 0; yb < s; yb++) {
+        for(var xb = 0; xb < s; xb++) {
+            if(arr[y + yb][x + xb] !== undefined) {
+                near.push(arr[y + yb][x + xb]);
+            }
+        }
+    }
+
+    return near;
+};
+
+
+// OOP constructors
+Block = function(x, y, type) {
+    this.x = x;
+    this.y = y;
+
+    this.type = type;
+    this.img = defaultImage;
+
+    this.solid = true;
+
+    this.w = blockSize;
+    this.h = blockSize;
+
+
+    this.draw = function() {
+        image(this.img, this.x, this.y, this.w, this.h);
+    };
+
+};
+Player = function() {
+
+    this.x = 0;
+    this.y = 0;
+
+    this.w = blockSize;
+    this.h = blockSize;
+
+    this.vx = 0;
+    this.vy = 0;
+
+    this.jump = 0;
+
+
+    this.draw = function() {
+        fill(240);
+        rect(this.x, this.y, this.w, this.h);
+    };
+
+    this.collide = function(vx, vy, arr) {
+
+        for(var i in arr) {
+            if(coll(p, arr[i]) && arr[i].solid) {
+
+                if(vx > 0) {
+
+                    this.x = arr[i].x - this.w;
+                    this.vx = 0;
+
+                } else if(vx < 0) {
+
+                    this.x = arr[i].x + arr[i].w;
+                    this.vx = 0;
+
+                }
+
+                if(vy > 0) {
+
+                    this.y = arr[i].y - this.h;
+                    this.vy = 0;
+                    this.jump = 1;
+
+                } else if(vy < 0) {
+
+                    this.y = arr[i].y + arr[i].h;
+                    this.vy = 0;
+
+                }
+
+            }
+        }
+
+    };
+
+    this.update = function() {
+
+        this.vx = 0;
+
+        if((keys[UP] || keys[87]) && this.jump > 0) {
+            this.vy = -5.5;
+        }
+
+        if(keys[LEFT] || keys[65]) {
+            this.vx = -4;
+        }
+
+        if(keys[RIGHT] || keys[68]) {
+            this.vx = 4;
+        }
+
+        this.jump -= 0.1;
+        this.vy += grav;
+
+        this.x += this.vx;
+        this.collide(this.vx, 0, nearBlocks(level, this.x + this.w/2, this.y + this.h/2));
+        this.y += this.vy;
+        this.collide(0, this.vy, nearBlocks(level, this.x + this.w/2, this.y + this.h/2));
+
+    };
+
+    this.all = function() {
+        this.update();
+        this.draw();
+    };
+
+};
+p = new Player();
+
+
+// temporary platformer setup
+var map = [
+    "aaaaaaaaaaaaaa",
+    "a            a",
+    "a            a",
+    "a       aaa  a",
+    "a   @   a a  a",
+    "aaa     a a  a",
+    "a       a a  a",
+    "a       a a  a",
+    "aaaaaaaaaaaaaa",
+];
+level = [];
+for(var y in map) {
+    level.push([]);
+    for(var x in map[y]) {
+        if(map[y][x] === "@") {
+            p.x = x*blockSize;
+            p.y = y*blockSize;
+        } else if(map[y][x] === "a") {
+            level[y].push(new Block(x*blockSize, y*blockSize, "a"))
+        } else {
+            level[y].push(undefined);
+        }
+    }
+}
+
+game = function() {
+
+    cam.x += (p.x - cam.x)/5;
+    cam.y += (p.y - cam.y)/5;
+
+
+    background(50);
+
+    pushMatrix();
+    translate(-cam.x + 300, -cam.y + 300)
+
+    for(var y in level) {
+        for(var x in level[y]) {
+            if(level[y][x] !== undefined) {
+                level[y][x].draw();
+            }
+        }
+    }
+
+    p.all();
+
+    fill(255, 100);
+    rect(cam.x - 300, cam.y - 300, 600, 600);
+    var ar = nearBlocks(level, p.x + p.w/2, p.y + p.h/2);
+
+    for(var i in ar) {
+        ar[i].draw();
+    }
+
+    popMatrix();
+
+};
+
+page = game;
+
+draw = function() {
+
+    background(255, 0, 0);
+
+    page();
+
+    fill(200)
+    text(this.__frameRate, 20, 20);
+
+};
+
 /****************************************** END OF PJS CODE *********************/
+
 } catch (e) {
   println(e);
 }
