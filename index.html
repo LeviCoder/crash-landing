@@ -26,6 +26,24 @@
 
 /****************************************** PJS CODE *********************/
 
+// NOTE: make sure rooms are at least 21 blocks by 21 blocks to work
+
+// this is a WIP. sorry, I can't comment rn. KA is slightly broken for me
+
+/**
+ * LOG
+
+Thursday, July  22
+    > basic platformer/Player
+
+Friday, July 23
+    > tried to make portals, made lots of bugs instead
+
+Saturday, July 24
+    > I am so dumb. fixed all those errors
+
+
+**/
 
 smooth();
 noStroke();
@@ -34,13 +52,14 @@ noStroke();
 // defining constructors and globals
 // these are defined early on for organization and global access
 // this is good when you want to reference something that hasn't been defined yet
-var Player, Block;
-var p = {}, level;
+var Player, Block, Portal;
+var p = {}, level = [], portals = [];
 var blockSize = 30, pixSize = 5, grav = 0.3;
 var cam = {
     x: 0,
     y: 0,
 };
+var lvl = 0;
 
 // defines the pages
 var page, game;
@@ -59,6 +78,112 @@ keyReleased = function() {
     keys[keyCode] = false;
 };
 
+// game functitons
+
+var maps = [
+    [
+"________________________________________",
+"_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_",
+"_a____________________________________a_",
+"_a____________________________________a_",
+"_a____________________________________a_",
+"_a____________________________________a_",
+"_a____________________________________a_",
+"_a________________________aaaa________a_",
+"_a_______________________a____a______aa_",
+"_a_____aaaaaaaaaa_____________________a_",
+"_a____a_________aaa___________________a_",
+"_a___________________________________aa_",
+"C_____________________________________a_",
+"C_____________________________________a_",
+"_a___________________________________aa_",
+"_a______________________________@______A",
+"_aaaaaaaa______________________________A",
+"_a______aaaaaaaa___________________aaaa_",
+"_a____________aaaaa_________aaaaaaaa__a_",
+"_a________aaaa___________aaaa_________a_",
+"_a_____aaa_____________aaa____________a_",
+"_a____a___________aaaaaa______________a_",
+"_a____a__________aa___________________a_",
+"_a_____aaaa___aaaa____________________a_",
+"_aaaaaaaaaa___aaaaaaaaaaaaaaaaaaaaaaaaa_",
+"___________BBB__________________________",
+    ],
+    [
+"________________BBB_________",
+"_aaaaaaaaaaaaaaa___aaaaaaaa_",
+"_a________________________a_",
+"_a________________________a_",
+"_a____________aaaaa_______a_",
+"_a________________________a_",
+"_a_________a______________a_",
+"_a________________________a_",
+"_a________________________a_",
+"_a______a_________________a_",
+"_a________________________a_",
+"_a________________________a_",
+"A____a____________________a_",
+"A_________________________a_",
+"_a________________________a_",
+"_aaa______________________a_",
+"_a________________________a_",
+"_a________________________a_",
+"_a__aaa___________________a_",
+"_a________________________a_",
+"_a________________________a_",
+"_a_______aaa______________a_",
+"_a________________________a_",
+"_a________________________a_",
+"_aaaaaaaaaaaaaaaaaaaaaaaaaa_",
+"____________________________",
+    ],
+];
+
+var portal = [
+    [[1, "A"], [1, "B"], [0, "A"], 0],
+    [[0, "A"], [0, "B"], [1, "A"], 0],
+];
+
+var portalLets = "ABCDEFG".split("");
+
+var fillLevel = function(l) {
+//println(frameCount)
+    var m = maps[l];
+    portals = [];
+    level = [];
+    for(var y = 0; y < m.length; y++) {
+        level.push([]);
+        for(var x = 0; x < m[y].length; x++) {
+            if(m[y][x] === "_") {
+                level[y].push(undefined);
+            } else if(m[y][x] === p.spawn) {
+                var addx = (p.vx > 0 ? x + 1 : (p.vx < 0 ? x - 1 : x));
+                var addy = (p.vy > 0 ? y + 1 : (p.vy < 0 ? y - 1 : y));
+                p.x = addx*blockSize;
+                p.y = addy*blockSize;
+
+                if(p.vy < -1) {
+                    p.jump = true;
+                    p.up = true;
+                }
+                if(portalLets.indexOf(m[y][x]) !== -1) {
+                    portals.push(new Portal(x*blockSize, y*blockSize, portal[lvl][portalLets.indexOf(m[y][x])]));
+
+                }
+                level[y].push(undefined);
+            } else if(m[y][x] === "a") {
+                level[y].push(new Block(x*blockSize, y*blockSize, "a"));
+            } else if(portalLets.indexOf(m[y][x]) !== -1) {
+                portals.push(new Portal(x*blockSize, y*blockSize, portal[lvl][portalLets.indexOf(m[y][x])]));
+                level[y].push(undefined);
+
+            }/* else {
+                level[y].push(undefined);
+            }*/
+        }
+    }
+};
+
 // checks for overlap between two objects
 var coll = function(a, b) {
     return a.x + a.w > b.x && a.y + a.h > b.y && a.x < b.x + b.w && a.y < b.y + b.h;
@@ -69,10 +194,9 @@ var coll = function(a, b) {
 // eliminating the lag associated with cheking every block
 var nearBlocks = function(arr, x, y, s) {
     s = s || 3;
-    x = constrain(floor(x/blockSize) - floor(s/2), 0, arr[arr.length - 1].length - s);
-    y = constrain(floor(y/blockSize) - floor(s/2), 0, arr.length - s);
+    x = constrain(floor(x/blockSize) - floor(s/2), 1, -1 + arr[arr.length - 1].length - s);
+    y = constrain(floor(y/blockSize) - floor(s/2), 1, -1 + arr.length - s);
     var near = [];
-
     for(var yb = 0; yb < s; yb++) {
         for(var xb = 0; xb < s; xb++) {
             if(arr[y + yb][x + xb] !== undefined) {
@@ -83,6 +207,15 @@ var nearBlocks = function(arr, x, y, s) {
 
     return near;
 };
+
+var drawBlocks = function() {
+    var arr = nearBlocks(level, cam.x + p.w/2, cam.y + p.h/2, 21);
+    for(var i in arr) {
+        arr[i].draw();
+    }
+};
+
+
 
 
 // OOP constructors
@@ -116,6 +249,9 @@ Player = function() {
     this.vy = 0;
 
     this.jump = 0;
+    this.up = false;
+
+    this.spawn = "@";
 
 
     this.draw = function() {
@@ -162,8 +298,9 @@ Player = function() {
 
         this.vx = 0;
 
-        if((keys[UP] || keys[87]) && this.jump > 0) {
+        if((keys[UP] || keys[87]) && this.jump > 0 || this.up) {
             this.vy = -5.5;
+            this.up = false;
         }
 
         if(keys[LEFT] || keys[65]) {
@@ -190,57 +327,64 @@ Player = function() {
     };
 
 };
+Portal = function(x, y, t) {
+
+    this.x = x;
+    this.y = y;
+
+    this.w = blockSize;
+    this.h = blockSize;
+
+    this.lvl = t[0];
+    this.to = t[1];
+    this.d = false;
+
+    this.draw = function() {
+        if(!this.d) {
+            this.d = dist(this.x, this.y, p.x, p.y) < blockSize*1.5;
+        }
+        if(coll(this, p) && this.d) {
+            lvl = this.lvl;
+            p.spawn = this.to;
+            fillLevel(lvl);
+
+        }
+        fill(255, 0, 0);
+        rect(this.x, this.y, this.w, this.h);
+
+    };
+
+};
 p = new Player();
 
 
 // temporary platformer setup
-var map = [
-    "aaaaaaaaaaaaaa",
-    "a            a",
-    "a            a",
-    "a       aaa  a",
-    "a   @   a a  a",
-    "aaa     a a  a",
-    "a       a a  a",
-    "a       a a  a",
-    "aaaaaaaaaaaaaa",
-];
-level = [];
-for(var y in map) {
-    level.push([]);
-    for(var x in map[y]) {
-        if(map[y][x] === "@") {
-            p.x = x*blockSize;
-            p.y = y*blockSize;
-        } else if(map[y][x] === "a") {
-            level[y].push(new Block(x*blockSize, y*blockSize, "a"))
-        } else {
-            level[y].push(undefined);
-        }
-    }
-}
+
+fillLevel(0);
 
 game = function() {
 
     cam.x += (p.x - cam.x)/5;
     cam.y += (p.y - cam.y)/5;
-
+//println(level.length)
+    cam.x = floor(constrain(cam.x, blockSize + width/2 - p.w/2, -blockSize + (level[1].length*blockSize) - width/2 - p.w/2));
+    cam.y = floor(constrain(cam.y, blockSize + height/2 - p.h/2, -blockSize + (level.length*blockSize) - height/2 - p.h/2));
 
     background(50);
 
     pushMatrix();
-    translate(-cam.x + 300, -cam.y + 300)
+    translate(-cam.x + width/2 - p.w/2, -cam.y + height/2 - p.h/2);
 
-    for(var y in level) {
-        for(var x in level[y]) {
-            if(level[y][x] !== undefined) {
-                level[y][x].draw();
-            }
-        }
+    for(var i = 0; i < portals.length; i++) {
+        portals[i].draw();
     }
+
+    drawBlocks();
 
     p.all();
 
+
+/*
     fill(255, 100);
     rect(cam.x - 300, cam.y - 300, 600, 600);
     var ar = nearBlocks(level, p.x + p.w/2, p.y + p.h/2);
@@ -248,20 +392,21 @@ game = function() {
     for(var i in ar) {
         ar[i].draw();
     }
-
+*/
     popMatrix();
 
 };
 
 page = game;
 
+frameRate(120);
 draw = function() {
 
     background(255, 0, 0);
 
     page();
 
-    fill(200)
+    fill(200);
     text(this.__frameRate, 20, 20);
 
 };
